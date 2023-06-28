@@ -1,5 +1,5 @@
 /**
- * 大文件上传
+ * 大文件断点续传
  */
 /* eslint-disable */
 const multiparty = require("multiparty");
@@ -32,12 +32,12 @@ const resolvePost = req =>
     });
   });
 
-// 创建临时文件夹用于临时存储chunk (添加 chunkDir 前缀与文件名做区分)
-const getChunkDir = fileName => path.resolve(UPLOAD_DIR, `chunkDir_${fileName}`);
+// 创建临时文件夹用于临时存储chunk (添加 chunkDir 前缀与文件hash做区分)
+const getChunkDir = fileHash => path.resolve(UPLOAD_DIR, `chunkDir_${fileHash}`);
 
 // 合并切片
-const mergeFileChunk = async (filePath, filename, size) => {
-  const chunkDir = getChunkDir(filename);
+const mergeFileChunk = async (filePath, size, fileHash) => {
+  const chunkDir = getChunkDir(fileHash);
   const chunkPaths = await fse.readdir(chunkDir);
   // 根据切片下标进行排序，否则直接读取目录的获得的顺序会错乱
   chunkPaths.sort((a, b) => a - b);
@@ -77,11 +77,12 @@ module.exports = class {
       const [chunk] = files.chunk;
       const [filename] = fields.filename;
       const [index] = fields.index;
+      const [filehash] = fields.filehash;
       const filePath = path.resolve(
         UPLOAD_DIR,
         `${filename}`
       ); // 最终合并后的文件路径
-      const chunkDir = getChunkDir(filename); // 存放chunk的文件夹路径
+      const chunkDir = getChunkDir(filehash); // 存放chunk的文件夹路径
       const chunkPath = path.resolve(chunkDir, index); // 存放每个切片文件的路径
 
       // 最终合并后的文件已经存在直接返回
@@ -124,9 +125,9 @@ module.exports = class {
   // 合并切片
   async handleMerge(req, res) {
     const data = await resolvePost(req);
-    const { filename, size } = data;
+    const { filename, size, fileHash } = data;
     const filePath = path.resolve(UPLOAD_DIR, `${filename}`);
-    await mergeFileChunk(filePath, filename, size);
+    await mergeFileChunk(filePath, size, fileHash);
     res.end(
       JSON.stringify({
         code: 0,
