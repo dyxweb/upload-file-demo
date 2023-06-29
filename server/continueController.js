@@ -35,6 +35,12 @@ const resolvePost = req =>
 // 创建临时文件夹用于临时存储chunk (添加 chunkDir 前缀与文件hash做区分)
 const getChunkDir = fileHash => path.resolve(UPLOAD_DIR, `chunkDir_${fileHash}`);
 
+// 返回已上传的所有切片名
+const createUploadedList = async fileHash =>
+  fse.existsSync(getChunkDir(fileHash))
+    ? await fse.readdir(getChunkDir(fileHash))
+    : [];
+
 // 合并切片
 const mergeFileChunk = async (filePath, size, fileHash) => {
   const chunkDir = getChunkDir(fileHash);
@@ -59,6 +65,17 @@ const mergeFileChunk = async (filePath, size, fileHash) => {
 };
 
 module.exports = class {
+  // 获取已上传的文件切片
+  async handleVerifyUpload(req, res) {
+    const data = await resolvePost(req);
+    const { fileHash } = data;
+    res.end(
+      JSON.stringify({
+        uploadedList: await createUploadedList(fileHash)
+      })
+    );
+  }
+
   // 处理文件切片
   async handleFormData(req, res) {
     const multipart = new multiparty.Form();

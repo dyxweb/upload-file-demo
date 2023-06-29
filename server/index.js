@@ -14,6 +14,12 @@ server.on("request", async (req, res) => {
     return;
   }
 
+  // 获取已经上传的文件切片
+  if (req.url === "/verify") {
+    await controller.handleVerifyUpload(req, res);
+    return;
+  }
+
   // 上传文件切片
   if (req.url === "/upload") {
     await controller.handleFormData(req, res);

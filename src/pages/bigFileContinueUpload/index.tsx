@@ -12,6 +12,7 @@ const BigFileContinueUpload = () => {
   const cancelRequestRef = useRef<any>([]); // 取消请求的存储
   const [uploadStatus, setUploadStatus] = useState(''); // 上传的状态
   const [selectFile, setSelectFile] = useState<any>(null); // 选择的文件
+  const [selectFileHash, setSelectFileHash] = useState<any>(null); // 选择的文件hash值
   const [chunkData, setChunkData] = useState<any>([]); // 切片文件数据
   const [totalPercentage, setTotalPercentage] = useState<number>(0); // 上传总进度
 
@@ -61,6 +62,7 @@ const BigFileContinueUpload = () => {
       setUploadStatus('loading');
       const fileChunkList = createFileChunk(selectFile);
       const fileHash = await calculateHash(fileChunkList);
+      setSelectFileHash(fileHash);
       const fileChunkData: any = fileChunkList.map(({ file }, index) => ({
         index,
         chunk: file,
@@ -73,8 +75,17 @@ const BigFileContinueUpload = () => {
   };
 
   // 上传切片
-  const uploadChunks = async (fileChunkData: any, fileHash: any) => {
+  const uploadChunks = async (
+    fileChunkData: any,
+    fileHash: any,
+    hasUploadedChunk: any = []
+  ) => {
     const requestList = fileChunkData
+      // 断点续传时过滤掉已经上传的文件切片
+      .filter(
+        ({ index }: { index: number }) =>
+          !hasUploadedChunk.includes(String(index))
+      )
       .map(({ chunk, index }: { chunk: any; index: number }) => {
         const formData = new FormData();
         formData.append('chunk', chunk);
@@ -125,8 +136,19 @@ const BigFileContinueUpload = () => {
 
   // 暂停上传
   const pauseUpload = () => {
-    console.log(cancelRequestRef.current);
     (cancelRequestRef.current || []).forEach((cancel: any) => cancel());
+  };
+
+  // 继续上传
+  const resumeUpload = async () => {
+    const res = await request({
+      url: '/verify',
+      method: 'POST',
+      data: JSON.stringify({
+        fileHash: selectFileHash
+      })
+    });
+    uploadChunks(chunkData, selectFileHash, res.data?.uploadedList || []);
   };
 
   const columns = [
@@ -163,6 +185,7 @@ const BigFileContinueUpload = () => {
         上传
       </Button>
       <Button onClick={pauseUpload}>暂停上传</Button>
+      <Button onClick={resumeUpload}>继续上传</Button>
       <h6>总上传进度</h6>
       <Progress percent={totalPercentage} style={{ width: '90%' }} />
       <h6>文件切片上传进度</h6>
