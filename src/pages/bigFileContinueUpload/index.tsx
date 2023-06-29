@@ -1,12 +1,15 @@
 /**
  * 大文件上传(断点续传)
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Button, message, Table, Progress } from 'antd';
+import axios from 'axios';
 import request from '@/utils/request';
 
-const SIZE = 10 * 1024 * 1024; // 单个文件切片大小
+const { CancelToken } = axios;
+const SIZE = 100 * 1024 * 1024; // 单个文件切片大小
 const BigFileContinueUpload = () => {
+  const cancelRequestRef = useRef<any>([]); // 取消请求的存储
   const [uploadStatus, setUploadStatus] = useState(''); // 上传的状态
   const [selectFile, setSelectFile] = useState<any>(null); // 选择的文件
   const [chunkData, setChunkData] = useState<any>([]); // 切片文件数据
@@ -95,7 +98,10 @@ const BigFileContinueUpload = () => {
               newData[index].percentage = percentCompleted;
               return newData;
             });
-          }
+          },
+          cancelToken: new CancelToken((cancel: any) => {
+            cancelRequestRef.current.push(cancel);
+          })
         })
       );
     await Promise.all(requestList);
@@ -115,6 +121,12 @@ const BigFileContinueUpload = () => {
     });
     message.success('上传成功');
     setUploadStatus('');
+  };
+
+  // 暂停上传
+  const pauseUpload = () => {
+    console.log(cancelRequestRef.current);
+    (cancelRequestRef.current || []).forEach((cancel: any) => cancel());
   };
 
   const columns = [
@@ -146,9 +158,11 @@ const BigFileContinueUpload = () => {
       <Button
         onClick={uploadFile}
         disabled={!selectFile || uploadStatus === 'loading'}
+        type="primary"
       >
         上传
       </Button>
+      <Button onClick={pauseUpload}>暂停上传</Button>
       <h6>总上传进度</h6>
       <Progress percent={totalPercentage} style={{ width: '90%' }} />
       <h6>文件切片上传进度</h6>
